@@ -1,30 +1,32 @@
-﻿namespace HSRProxy
-{
-    using System;
-    using System.Net;
-    using System.Net.Security;
-    using System.Threading.Tasks;
-    using Titanium.Web.Proxy;
-    using Titanium.Web.Proxy.EventArguments;
-    using Titanium.Web.Proxy.Models;
+﻿using System;
+using System.Text;
+using System.Net;
+using System.Net.Security;
+using System.Threading.Tasks;
+using Titanium.Web.Proxy;
+using Titanium.Web.Proxy.EventArguments;
+using Titanium.Web.Proxy.Models;
 
+namespace HSRProxy
+{
     internal class ProxyService
     {
         private const string QueryGatewayRequestString = "query_gateway";
 
-        private static readonly string[] s_redirectDomains =
+        private const string ConfFile = "HSRProxy.conf";
+        private static string[] s_redirectDomains =
         {
             ".bhsr.com",
             ".starrails.com",
             ".hoyoverse.com",
             ".mihoyo.com"
         };
+        private readonly string _targetRedirectUrl= "http://127.5.6.1:17888";
+        private readonly string _targetRedirectHost = "";
 
         private readonly ProxyServer _webProxyServer;
-        private readonly string _targetRedirectHost;
-        private readonly int _targetRedirectPort;
 
-        public ProxyService(string targetRedirectHost, int targetRedirectPort)
+        public ProxyService()
         {
             _webProxyServer = new ProxyServer();
             _webProxyServer.CertificateManager.EnsureRootCertificate();
@@ -32,10 +34,36 @@
             _webProxyServer.BeforeRequest += BeforeRequest;
             _webProxyServer.ServerCertificateValidationCallback += OnCertValidation;
 
-            _targetRedirectHost = targetRedirectHost;
-            _targetRedirectPort = targetRedirectPort;
+            try
+            {
+                // read
+                string[] text = File.ReadAllText(ConfFile, Encoding.UTF8).Split(" => ");
+                if(text.Length == 2)
+                {
+                    string[] aSrcHost = text[0].Split(";");
+                    if(aSrcHost.Length > 0)
+                    {
+                        string sTargetUrl = text[1];
+                        string[] aTargetUrl = sTargetUrl.Split("/");
+                        if(aTargetUrl.Length == 3)
+                        {
+                            string[] aDstHost = aTargetUrl[2].Split(":");
+                            if(aDstHost.Length > 0)
+                            {
+                                s_redirectDomains = aSrcHost;
+                                _targetRedirectUrl = sTargetUrl;
+                                _targetRedirectHost = aDstHost[0];
+                            }
+                        }
+                    }
+                }
+                // write
+                File.WriteAllText(ConfFile, string.Format("{0} => {1}", string.Join(";", s_redirectDomains), _targetRedirectUrl), Encoding.UTF8);
+            }
+            catch(Exception){}
 
             SetEndPoint(new ExplicitProxyEndPoint(IPAddress.Any, 8080, true));
+            Console.WriteLine(File.ReadAllText(ConfFile, Encoding.UTF8));
         }
 
         private void SetEndPoint(ExplicitProxyEndPoint explicitEP)
@@ -58,7 +86,7 @@
         private Task BeforeTunnelConnectRequest(object sender, TunnelConnectSessionEventArgs args)
         {
             string hostname = args.HttpClient.Request.RequestUri.Host;
-            Console.WriteLine(hostname);
+            // Console.WriteLine(hostname);
             args.DecryptSsl = ShouldRedirect(hostname);
 
             return Task.CompletedTask;
@@ -78,7 +106,7 @@
             if (ShouldRedirect(hostname) || (hostname == _targetRedirectHost && args.HttpClient.Request.RequestUri.AbsolutePath.Contains(QueryGatewayRequestString)))
             {
                 string requestUrl = args.HttpClient.Request.Url;
-                Uri local = new Uri($"http://{_targetRedirectHost}:{_targetRedirectPort}/");
+                Uri local = new Uri(_targetRedirectUrl);
 
                 string replacedUrl = new UriBuilder(requestUrl)
                 {
@@ -87,7 +115,7 @@
                     Port = local.Port
                 }.Uri.ToString();
 
-                Console.WriteLine("Redirecting: " + replacedUrl);
+                Console.WriteLine(hostname + " => " + replacedUrl);
                 args.HttpClient.Request.Url = replacedUrl;
             }
 

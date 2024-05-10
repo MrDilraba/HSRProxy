@@ -1,14 +1,11 @@
 ﻿using System;
-using System.IO;
 using System.Net;
-using System.Text;
 
 namespace HSRProxy
 {
     internal static class Program
     {
         private const string Title = "HSR Proxy";
-        private const string ConfFile = "HSRProxy.conf";
 
         private static ProxyService s_proxyService;
         private static EventHandler s_processExitHandler = new EventHandler(OnProcessExit);
@@ -17,34 +14,7 @@ namespace HSRProxy
         {
             Console.Title = Title;
             CheckProxy();
-
-            string sTargetHost = "127.5.6.1";
-            int iTargetPort = 17888;
-            try
-            {
-                string line = File.ReadAllText(ConfFile);
-                if(line != null)
-                {
-                    string[] aConfig = line.Split(":");
-                    if(aConfig.Length == 2)
-                    {
-                        int iPort = Int32.Parse(aConfig[1]);
-                        if(iPort > 0 && iPort < 65535)
-                        {
-                            sTargetHost = aConfig[0];
-                            iTargetPort = iPort;
-                        }
-                    }
-                }
-            }
-            catch(Exception){}
-            try
-            {
-                File.WriteAllText(ConfFile, string.Format("{0}:{1}", sTargetHost, iTargetPort), Encoding.UTF8);
-            }
-            catch(Exception){}
-
-            s_proxyService = new ProxyService(sTargetHost, iTargetPort);
+            s_proxyService = new ProxyService();
             AppDomain.CurrentDomain.ProcessExit += s_processExitHandler;
 
             Thread.Sleep(-1);
