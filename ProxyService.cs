@@ -34,9 +34,9 @@ namespace HSRProxy
             _webProxyServer.BeforeRequest += BeforeRequest;
             _webProxyServer.ServerCertificateValidationCallback += OnCertValidation;
 
+            // read
             try
             {
-                // read
                 string[] text = File.ReadAllText(ConfFile, Encoding.UTF8).Split(" => ");
                 if(text.Length == 2)
                 {
@@ -57,10 +57,12 @@ namespace HSRProxy
                         }
                     }
                 }
-                // write
+            }catch(Exception){}
+            // write
+            try
+            {
                 File.WriteAllText(ConfFile, string.Format("{0} => {1}", string.Join(";", s_redirectDomains), _targetRedirectUrl), Encoding.UTF8);
-            }
-            catch(Exception){}
+            }catch(Exception){}
 
             SetEndPoint(new ExplicitProxyEndPoint(IPAddress.Any, 8080, true));
             Console.WriteLine(File.ReadAllText(ConfFile, Encoding.UTF8));
